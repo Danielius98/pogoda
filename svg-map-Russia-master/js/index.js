@@ -10,10 +10,6 @@ $('path').hover(function(e){
     $('<div>' + regionName + '</div>').appendTo('.indicator');
   }
 
-  if($(this).attr('flag')) {
-    var flag = "flags/" + $(this).attr('flag');
-    $('<img class="flag" src="' + flag + '" alt="">').appendTo('.indicator');
-  }
 
 
   for (var j = 0; j < idAarr2.length; j++) {
@@ -152,7 +148,7 @@ var idAarr = ["RU-MOW",
   "RU-TOM",
   "RU-IRK"];
 var idAarr2 = new Array(
-    ["RU-MOW", "Москва", "moscow.gif", [55.7558, 37.6173]],
+    ["RU-MOW", "Москва", "", [55.7558, 37.6173]],
     ["RU-CHE", "Челябинская область", "", [55.1644, 61.4368]],
     ["RU-ORL", "Орловская область", "", [52.9690, 36.0640]],
     ["RU-OMS", "Омская область", "", [54.9893, 73.3682]],
@@ -241,14 +237,11 @@ var idAarr2 = new Array(
 
 $('path').each(function() {
   var regId = $(this).attr('id');
-  var flag = '';
   var name = '';
   for (var j = 0; j < idAarr2.length; j++) {
     if (regId == idAarr2[j][0]) {
       name = idAarr2[j][1];
-      flag = 'flags/' + idAarr2[j][2];
       $(this).attr('name', name);
-      $(this).attr('flag', flag);
     }
   }
 
