@@ -1,152 +1,340 @@
-$('path').hover(function(e){
-  $('path').css('fill','#fff');
-  $('.indicator').html('');
-  var id = $(this).attr('id').toUpperCase();
-  var regionName = '';
-  var regionCoords = null;
+$(document).ready(function() {
+  let isDragging = false;
+  let startX, startY;
 
-  if($(this).attr('name')) {
-    regionName = $(this).attr('name');
-    $('<div>' + regionName + '</div>').appendTo('.indicator');
+  $('svg').mousedown(function(e) {
+    isDragging = true;
+    startX = e.pageX;
+    startY = e.pageY;
+  });
+
+  $(document).mousemove(function(e) {
+    if (isDragging) {
+      translateX += (e.pageX - startX) / scale;
+      translateY += (e.pageY - startY) / scale;
+      startX = e.pageX;
+      startY = e.pageY;
+      updateTransform();
+    }
+  });
+
+  $(document).mouseup(function() {
+    isDragging = false;
+  });
+
+  $('.indicator').click(function(e) {
+    e.stopPropagation();
+    resetSelection();
+  });
+
+  // Переменная для хранения текущего выделенного региона
+  let currentSelectedPath = null;
+
+  // Переменные для управления зумом
+  let scale = 1;
+  const scaleStep = 0.2;
+  const minScale = 0.5;
+  const maxScale = 3;
+  let translateX = 0;
+  let translateY = 0;
+
+  // Добавляем кнопки зума
+  const zoomControls = `
+    <div class="zoom-controls" style="position: absolute; top: 10px; right: 10px; z-index: 1000;">
+      <button id="zoom-in">+</button>
+      <button id="zoom-out">−</button>
+      <button id="zoom-reset">=</button>
+    </div>
+  `;
+  $('body').append(zoomControls);
+
+  // Стили для кнопок
+  const zoomStyles = `
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+      }
+      .zoom-controls button {
+        display: block;
+        width: 30px;
+        height: 30px;
+        margin: 5px 0;
+        font-size: 16px;
+        background-color: #fff;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .zoom-controls button:hover {
+        background-color: #f0f0f0;
+      }
+    </style>
+  `;
+  $('head').append(zoomStyles);
+
+  // Функция обновления трансформации SVG
+  function updateTransform() {
+    $('svg').attr('transform', `scale(${scale}) translate(${translateX}, ${translateY})`);
   }
 
-
-
-  for (var j = 0; j < idAarr2.length; j++) {
-    if (id == idAarr2[j][0].toUpperCase()) {
-      regionCoords = idAarr2[j][3];
-      break;
+  // Функция сброса выбора региона
+  function resetSelection() {
+    if (currentSelectedPath) {
+      $('path').css('fill', 'rgba(0,0,0,0.2)');
+      $('.indicator').html('');
+      $('.indicator').hide();
+      currentSelectedPath = null;
     }
   }
 
+  // Обработчик кнопки Zoom In
+  $('#zoom-in').click(function() {
+    if (scale < maxScale) {
+      scale += scaleStep;
+      updateTransform();
+    }
+  });
 
-  if (regionCoords) {
-    $.ajax({
-      url: 'http://api.weatherapi.com/v1/current.json',
-      data: {
-        key: 'e438dfaf96794ced9c340852252504',
-        q: regionCoords[0] + ',' + regionCoords[1],
-        lang: 'ru'
-      },
-      success: function(data) {
-        var weather = data.current.condition.text;
-        var temp = Math.round(data.current.temp_c);
-        var weatherIcon = `https:${data.current.condition.icon}`;
+  // Обработчик кнопки Zoom Out
+  $('#zoom-out').click(function() {
+    if (scale > minScale) {
+      scale -= scaleStep;
+      updateTransform();
+    }
+  });
 
+  // Обработчик кнопки Reset Zoom
+  $('#zoom-reset').click(function() {
+    scale = 1;
+    translateX = 0;
+    translateY = 0;
+    updateTransform();
+  });
 
-        $('.indicator').append(`
-          <div class="weather-info">
-            <img src="${weatherIcon}" alt="weather icon" style="width: 50px; vertical-align: middle;">
-            <span style="margin-left: 10px;">${weather}, ${temp}°C</span>
-          </div>
-        `);
-      },
-      error: function(jqXHR, textStatus, errorThrown) {
-        // Enhanced error logging for debugging
-        $('.indicator').append(`<div>Не удалось загрузить погоду: ${textStatus} - ${errorThrown}</div>`);
-        console.log('WeatherAPI Error:', textStatus, errorThrown);
-        console.log('Response:', jqXHR.responseText);
+  // Обработчик клика по региону на карте
+  $('path').click(function(e) {
+    e.stopPropagation(); // Предотвращаем всплытие события до document
+
+    // Если кликнули на уже выбранный регион, сбрасываем выбор
+    if (currentSelectedPath === this) {
+      resetSelection();
+      return;
+    }
+
+    // Сбрасываем стили для всех регионов
+    $('path').css('fill', 'rgba(0,0,0,0.2)');
+
+    // Если уже есть выделенный регион, очищаем индикатор
+    if (currentSelectedPath && currentSelectedPath !== this) {
+      $('.indicator').html('');
+      $('.indicator').hide();
+    }
+
+    // Сохраняем текущий выбранный регион
+    currentSelectedPath = this;
+
+    // Очищаем индикатор перед новым запросом
+    $('.indicator').html('');
+
+    var id = $(this).attr('id').toUpperCase();
+    var regionName = '';
+    var regionCoords = null;
+
+    if ($(this).attr('name')) {
+      regionName = $(this).attr('name');
+      $('<div>' + regionName + '</div>').appendTo('.indicator');
+    }
+
+    for (var j = 0; j < idAarr2.length; j++) {
+      if (id == idAarr2[j][0].toUpperCase()) {
+        regionCoords = idAarr2[j][3];
+        break;
       }
-    });
-  } else {
-    $('.indicator').append('<div>Координаты региона не найдены</div>');
-  }
+    }
 
-  $(this).css('fill','#f6e72d');
-  $('path').not(this).css('fill','rgba(0,0,0,0.5)');
-  $('.indicator').css({'top':e.pageY,'left':e.pageX+30}).show();
-}, function(){
-  $('.indicator').html('');
-  $('.indicator').hide();
-  $('path').css('fill','rgba(0,0,0,0.2)');
+    if (regionCoords) {
+      $.ajax({
+        url: 'http://api.weatherapi.com/v1/forecast.json',
+        data: {
+          key: 'e438dfaf96794ced9c340852252504',
+          q: regionCoords[0] + ',' + regionCoords[1],
+          lang: 'ru',
+          days: 7
+        },
+        success: function(data) {
+          var currentWeather = data.current.condition.text;
+          var currentTemp = Math.round(data.current.temp_c);
+          var currentWeatherIcon = `https:${data.current.condition.icon}`;
+
+          $('.indicator').append(`
+            <div class="weather-info">
+              <strong>Сегодня:</strong>
+              <img src="${currentWeatherIcon}" alt="weather icon" style="width: 50px; vertical-align: middle;">
+              <span style="margin-left: 10px;">${currentWeather}, ${currentTemp}°C</span>
+            </div>
+          `);
+
+          var forecastDays = data.forecast.forecastday;
+          for (var i = 0; i < forecastDays.length; i++) {
+            var day = forecastDays[i];
+            var date = new Date(day.date).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+            var forecastWeather = day.day.condition.text;
+            var forecastTempMax = Math.round(day.day.maxtemp_c);
+            var forecastTempMin = Math.round(day.day.mintemp_c);
+            var forecastIcon = `https:${day.day.condition.icon}`;
+
+            $('.indicator').append(`
+              <div class="weather-info" style="margin-top: 10px;">
+                <strong>${date}:</strong>
+                <img src="${forecastIcon}" alt="weather icon" style="width: 40px; vertical-align: middle;">
+                <span style="margin-left: 10px;">${forecastWeather}, ${forecastTempMin}°C - ${forecastTempMax}°C</span>
+              </div>
+            `);
+          }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+          $('.indicator').append(`<div>Не удалось загрузить погоду: ${textStatus} - ${errorThrown}</div>`);
+          console.log('WeatherAPI Error:', textStatus, errorThrown);
+          console.log('Response:', jqXHR.responseText);
+        }
+      });
+    } else {
+      $('.indicator').append('<div>Координаты региона не найдены</div>');
+    }
+
+    // Выделяем только текущий регион
+    $(this).css('fill', '#f6e72d');
+    $('.indicator').css({
+      'top': e.pageY / scale - translateY,
+      'left': (e.pageX / scale + 30) - translateX
+    }).show();
+  });
+
+  // Обработчик клика по списку регионов
+  $('.reg').click(function(e) {
+    e.stopPropagation(); // Предотвращаем всплытие события до document
+
+    // Сбрасываем стили для всех регионов
+    $('path').css('fill', 'rgba(0,0,0,0.2)');
+
+    // Очищаем индикатор
+    $('.indicator').html('');
+    $('.indicator').hide();
+
+    var id = $(this).find('span').text();
+    var idHover = '#' + id;
+
+    // Если кликнули на уже выбранный регион, сбрасываем выбор
+    if (currentSelectedPath === $(idHover)[0]) {
+      resetSelection();
+      return;
+    }
+
+    // Сохраняем текущий выбранный регион
+    currentSelectedPath = $(idHover)[0];
+
+    var regionName = '';
+    var regionCoords = null;
+
+    for (var j = 0; j < idAarr2.length; j++) {
+      if (id == idAarr2[j][0]) {
+        regionName = idAarr2[j][1];
+        regionCoords = idAarr2[j][3];
+        break;
+      }
+    }
+
+    if (regionName) {
+      $('<div>' + regionName + '</div>').appendTo('.indicator');
+    }
+
+    if (regionCoords) {
+      $.ajax({
+        url: 'http://api.weatherapi.com/v1/forecast.json',
+        data: {
+          key: 'e438dfaf96794ced9c340852252504',
+          q: regionCoords[0] + ',' + regionCoords[1],
+          lang: 'ru',
+          days: 7
+        },
+        success: function(data) {
+          var currentWeather = data.current.condition.text;
+          var currentTemp = Math.round(data.current.temp_c);
+          var currentWeatherIcon = `https:${data.current.condition.icon}`;
+
+          $('.indicator').append(`
+            <div class="weather-info">
+              <strong>Сегодня:</strong>
+              <img src="${currentWeatherIcon}" alt="weather icon" style="width: 50px; vertical-align: middle;">
+              <span style="margin-left: 10px;">${currentWeather}, ${currentTemp}°C</span>
+            </div>
+          `);
+
+          var forecastDays = data.forecast.forecastday;
+          for (var i = 0; i < forecastDays.length; i++) {
+            var day = forecastDays[i];
+            var date = new Date(day.date).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+            var forecastWeather = day.day.condition.text;
+            var forecastTempMax = Math.round(day.day.maxtemp_c);
+            var forecastTempMin = Math.round(day.day.mintemp_c);
+            var forecastIcon = `https:${day.day.condition.icon}`;
+
+            $('.indicator').append(`
+              <div class="weather-info" style="margin-top: 10px;">
+                <strong>${date}:</strong>
+                <img src="${forecastIcon}" alt="weather icon" style="width: 40px; vertical-align: middle;">
+                <span style="margin-left: 10px;">${forecastWeather}, ${forecastTempMin}°C - ${forecastTempMax}°C</span>
+              </div>
+            `);
+          }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+          $('.indicator').append(`<div>Не удалось загрузить погоду: ${textStatus} - ${errorThrown}</div>`);
+          console.log('WeatherAPI Error:', textStatus, errorThrown);
+          console.log('Response:', jqXHR.responseText);
+        }
+      });
+    } else {
+      $('.indicator').append('<div>Координаты региона не найдены</div>');
+    }
+
+    $(idHover).css('fill', '#f6e72d');
+    $('.indicator').css({
+      'top': e.pageY / scale - translateY,
+      'left': (e.pageX / scale + 30) - translateX
+    }).show();
+  });
+
+  // Обработчик клика за пределы карты
+  $(document).click(function(e) {
+    if (!$(e.target).closest('svg, .reg, .zoom-controls').length) {
+      resetSelection();
+    }
+  });
+
+  // Инициализация списка регионов
+  $('path').each(function() {
+    var regId = $(this).attr('id');
+    var name = '';
+    for (var j = 0; j < idAarr2.length; j++) {
+      if (regId == idAarr2[j][0]) {
+        name = idAarr2[j][1];
+        $(this).attr('name', name);
+      }
+    }
+
+    var regIdDiv = '<div class="reg" >' + '[' + '<span>' + regId + '</span>' + ']' + ' ' + name + '</div>';
+    $(regIdDiv).appendTo('.regs');
+  });
 });
-//Изначально хотел другую апи с кординатами но она платная, а переделывать лень
 
-var idAarr = ["RU-MOW",
-  "RU-SPE",
-  "RU-NEN",
-  "RU-YAR",
-  "RU-CHE",
-  "RU-ULY",
-  "RU-TYU",
-  "RU-TUL",
-  "RU-SVE",
-  "RU-RYA",
-  "RU-ORL",
-  "RU-OMS",
-  "RU-NGR",
-  "RU-LIP",
-  "RU-KRS",
-  "RU-KGN",
-  "RU-KGD",
-  "RU-IVA",
-  "RU-BRY",
-  "RU-AST",
-  "RU-KHA",
-  "RU-CE",
-  "RU-UD",
-  "RU-SE",
-  "RU-MO",
-  "RU-KR",
-  "RU-KL",
-  "RU-IN",
-  "RU-AL",
-  "RU-BA",
-  "RU-AD",
-  "RU-CR",
-  "RU-SEV",
-  "RU-KO",
-  "RU-KIR",
-  "RU-PNZ",
-  "RU-TAM",
-  "RU-MUR",
-  "RU-LEN",
-  "RU-VLG",
-  "RU-KOS",
-  "RU-PSK",
-  "RU-ARK",
-  "RU-YAN",
-  "RU-CHU",
-  "RU-YEV",
-  "RU-TY",
-  "RU-SAK",
-  "RU-AMU",
-  "RU-BU",
-  "RU-KK",
-  "RU-KEM",
-  "RU-NVS",
-  "RU-ALT",
-  "RU-DA",
-  "RU-STA",
-  "RU-KB",
-  "RU-KC",
-  "RU-KDA",
-  "RU-ROS",
-  "RU-SAM",
-  "RU-TA",
-  "RU-ME",
-  "RU-CU",
-  "RU-NIZ",
-  "RU-VLA",
-  "RU-MOS",
-  "RU-KLU",
-  "RU-BEL",
-  "RU-ZAB",
-  "RU-PRI",
-  "RU-KAM",
-  "RU-MAG",
-  "RU-SA",
-  "RU-KYA",
-  "RU-ORE",
-  "RU-SAR",
-  "RU-VGG",
-  "RU-VOR",
-  "RU-SMO",
-  "RU-TVE",
-  "RU-PER",
-  "RU-KHM",
-  "RU-TOM",
-  "RU-IRK"];
+
+var idAarr = ["RU-MOW", "RU-SPE", "RU-NEN", "RU-YAR", "RU-CHE", "RU-ULY", "RU-TYU", "RU-TUL", "RU-SVE", "RU-RYA", "RU-ORL", "RU-OMS", "RU-NGR", "RU-LIP", "RU-KRS", "RU-KGN", "RU-KGD", "RU-IVA", "RU-BRY", "RU-AST", "RU-KHA", "RU-CE", "RU-UD", "RU-SE", "RU-MO", "RU-KR", "RU-KL", "RU-IN", "RU-AL", "RU-BA", "RU-AD", "RU-CR", "RU-SEV", "RU-KO", "RU-KIR", "RU-PNZ", "RU-TAM", "RU-MUR", "RU-LEN", "RU-VLG", "RU-KOS", "RU-PSK", "RU-ARK", "RU-YAN", "RU-CHU", "RU-YEV", "RU-TY", "RU-SAK", "RU-AMU", "RU-BU", "RU-KK", "RU-KEM", "RU-NVS", "RU-ALT", "RU-DA", "RU-STA", "RU-KB", "RU-KC", "RU-KDA", "RU-ROS", "RU-SAM", "RU-TA", "RU-ME", "RU-CU", "RU-NIZ", "RU-VLA", "RU-MOS", "RU-KLU", "RU-BEL", "RU-ZAB", "RU-PRI", "RU-KAM", "RU-MAG", "RU-SA", "RU-KYA", "RU-ORE", "RU-SAR", "RU-VGG", "RU-VOR", "RU-SMO", "RU-TVE", "RU-PER", "RU-KHM", "RU-TOM", "RU-IRK"];
+
 var idAarr2 = new Array(
     ["RU-MOW", "Москва", "", [55.7558, 37.6173]],
     ["RU-CHE", "Челябинская область", "", [55.1644, 61.4368]],
@@ -234,27 +422,3 @@ var idAarr2 = new Array(
     ["RU-STA", "Ставропольский край", "", [45.0428, 41.9734]],
     ["RU-TUL", "Тульская область", "", [54.1961, 37.6182]]
 );
-
-$('path').each(function() {
-  var regId = $(this).attr('id');
-  var name = '';
-  for (var j = 0; j < idAarr2.length; j++) {
-    if (regId == idAarr2[j][0]) {
-      name = idAarr2[j][1];
-      $(this).attr('name', name);
-    }
-  }
-
-  var regIdDiv = '<div class="reg" >' + '[' + '<span>' + regId + '</span>' + ']' + ' ' + name + '</div>';
-  $(regIdDiv).appendTo('.regs');
-});
-
-$('.reg').hover(function(e) {
-  var id = $(this).find('span').text();
-  var idHover = '#' + id;
-  $(idHover).css('fill', '#f6e72d');
-}, function() {
-  $('.indicator').html('');
-  $('.indicator').hide();
-  $('path').css('fill', 'rgba(0,0,0,0.2)');
-});
